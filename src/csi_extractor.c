@@ -65,9 +65,12 @@
 #include <capabilities.h>
 #include <channels.h>
 
-extern void prepend_ethernet_ipv4_udp_header(struct sk_buff *p);
+extern void prepend_ethernet_ipv4_udp_header(struct sk_buff *p); // import function
 
 #define WL_RSSI_ANT_MAX     4           /* max possible rx antennas */
+
+/* The first few code set the structure for 5 data types:
+   d11csihdr, d11rxhdr, nexmon_d11rxhdr, wlc_d11rxhdr, and csi_udp_frame */
 
 // header of csi frame coming from ucode
 struct d11csihdr {
@@ -145,10 +148,17 @@ struct csi_udp_frame {
 
 struct int14 {signed int val:14;} __attribute__((packed));
 
+
+////////////////////////////////////////////////////////////////////////////////
+
+
+// define some variables
 uint16 missing_csi_frames = 0;
 uint16 inserted_csi_values = 0;
-struct sk_buff *p_csi = 0;
+struct sk_buff *p_csi = 0;		// define pointer p_csi to structure sk_buff which is in another file 
 
+/* Now the rest of the codes consist of 4 function: 
+   create_new_csi_frame, process_frame_hook, process_frame_prehook_off0xC, and process_frame_prehook_off0x8 */
 void
 create_new_csi_frame(struct wl_info *wl, uint16 csiconf, int length)
 {
@@ -158,7 +168,7 @@ create_new_csi_frame(struct wl_info *wl, uint16 csiconf, int length)
     // fill header
     struct csi_udp_frame *udpfrm = (struct csi_udp_frame *) p_csi->data;
     // add magic bytes, csi config and chanspec to new udp frame
-    udpfrm->kk1 = 0x11111111;
+    udpfrm->kk1 = 0x11111111; // The first bytes in the csi data 
     udpfrm->seqCnt = 0;
     udpfrm->csiconf = csiconf;
     udpfrm->chanspec = get_chanspec(wl->wlc);
