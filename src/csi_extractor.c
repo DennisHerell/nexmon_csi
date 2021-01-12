@@ -155,7 +155,7 @@ struct int14 {signed int val:14;} __attribute__((packed));
 // define some variables
 uint16 missing_csi_frames = 0;
 uint16 inserted_csi_values = 0;
-struct sk_buff *p_csi = 0;		// define pointer p_csi to structure sk_buff which is in another file 
+struct sk_buff *p_csi = 0;		// define pointer p_csi to structure sk_buff which is in struct.common.h
 
 /* Now the rest of the codes consist of 4 function: 
    create_new_csi_frame, process_frame_hook, process_frame_prehook_off0xC, and process_frame_prehook_off0x8 */
@@ -164,7 +164,7 @@ create_new_csi_frame(struct wl_info *wl, uint16 csiconf, int length)
 {
     struct osl_info *osh = wl->wlc->osh;
     // create new csi udp frame
-    p_csi = pkt_buf_get_skb(osh, sizeof(struct csi_udp_frame) + length);
+    p_csi = pkt_buf_get_skb(osh, sizeof(struct csi_udp_frame) + length); // pkt_buf_get_skb is a function from the driver
     // fill header
     struct csi_udp_frame *udpfrm = (struct csi_udp_frame *) p_csi->data;
     // add magic bytes, csi config and chanspec to new udp frame
@@ -178,8 +178,8 @@ create_new_csi_frame(struct wl_info *wl, uint16 csiconf, int length)
 void
 process_frame_hook(struct sk_buff *p, struct wlc_d11rxhdr *wlc_rxhdr, struct wlc_hw_info *wlc_hw, int tsf_l)
 {
-    struct osl_info *osh = wlc_hw->wlc->osh;
-    struct wl_info *wl = wlc_hw->wlc->wl;
+    struct osl_info *osh = wlc_hw->wlc->osh; // Get osl info from wlc_hw
+    struct wl_info *wl = wlc_hw->wlc->wl; // Get wl_info from wlc_hw
 #if NEXMON_CHIP == CHIP_VER_BCM4366c0
     if (wlc_rxhdr->rxhdr.Pad) {
         struct d11csihdr *ucodecsifrm = (struct d11csihdr *) &(wlc_rxhdr->rxhdr.Pad);
@@ -189,22 +189,22 @@ process_frame_hook(struct sk_buff *p, struct wlc_d11rxhdr *wlc_rxhdr, struct wlc
 #define NEWCSI	0x8000
         // check this is a new frame
         if (ucodecsifrm->start & NEWCSI) {
-#else
-    if (wlc_rxhdr->rxhdr.RxFrameSize == 2) {
-        struct d11csihdr *ucodecsifrm = (struct d11csihdr *) &(wlc_rxhdr->rxhdr);
-        int missing = ucodecsifrm->NexmonCSICfg & 0xff;
+#else //Extract information from the rx header which contain the CSI
+    if (wlc_rxhdr->rxhdr.RxFrameSize == 2) { // If rx frame size = 2
+        struct d11csihdr *ucodecsifrm = (struct d11csihdr *) &(wlc_rxhdr->rxhdr); // The csi data
+        int missing = ucodecsifrm->NexmonCSICfg & 0xff; // AND bitwise operation with config bits
         int tones = ucodecsifrm->NexmonCSILen;
-        uint16 csiconf = (ucodecsifrm->NexmonCSICfg >> 8)&0x3f;
+        uint16 csiconf = (ucodecsifrm->NexmonCSICfg >> 8)&0x3f; // Binary Right Shift Operator
 #define CSIDATA_PER_CHUNK   56
 #define NEWCSI	0x4000
         // check this is a new frame
         if (ucodecsifrm->NexmonCSICfg & NEWCSI) {
 #endif
-            if (p_csi != 0) {
+            if (p_csi != 0) { //p_csi should be 0 if create_new_csi_frame haven't been called
                 printf("unexpected new csi, clearing old\n");
                 pkt_buf_free_skb(osh, p_csi, 0);
             }
-            create_new_csi_frame(wl, csiconf, missing * CSIDATA_PER_CHUNK);
+            create_new_csi_frame(wl, csiconf, missing * CSIDATA_PER_CHUNK); // get csi frame (p_csi)
             missing_csi_frames = missing;
             inserted_csi_values = 0;
         }
@@ -221,16 +221,16 @@ process_frame_hook(struct sk_buff *p, struct wlc_d11rxhdr *wlc_rxhdr, struct wlc
             return;
         }
 
-        struct csi_udp_frame *udpfrm = (struct csi_udp_frame *) p_csi->data;
+        struct csi_udp_frame *udpfrm = (struct csi_udp_frame *) p_csi->data; // udpframe = p_csi data
 
-        int i;
+        int i; // tones = CSI length
         for (i = 0; i < tones; i ++) {
 #if ((NEXMON_CHIP == CHIP_VER_BCM4339) || (NEXMON_CHIP == CHIP_VER_BCM43455c0))
             // csi format is 4bit null, int14 real, int14 imag
             // convert to int16 real, int16 imag
             struct int14 sint14;
-            sint14.val = (ucodecsifrm->csi[i] >> 14) & 0x3fff;
-            udpfrm->csi_values[inserted_csi_values] = (uint32)((int16)(sint14.val)<<16);
+            sint14.val = (ucodecsifrm->csi[i] >> 14) & 0x3fff; // takes in int14 csi value from d11 core
+            udpfrm->csi_values[inserted_csi_values] = (uint32)((int16)(sint14.val)<<16); // convert it into uint32
             sint14.val = ucodecsifrm->csi[i] & 0x3fff;
             udpfrm->csi_values[inserted_csi_values] |= ((uint32)((int16)(sint14.val)))&0xffff;
 #elif ((NEXMON_CHIP == CHIP_VER_BCM4358) || (NEXMON_CHIP == CHIP_VER_BCM4366c0))
@@ -242,7 +242,7 @@ process_frame_hook(struct sk_buff *p, struct wlc_d11rxhdr *wlc_rxhdr, struct wlc
             // forward as uint32 and unpack in user application
             udpfrm->csi_values[inserted_csi_values] = ucodecsifrm->csi[i];
 #endif
-            inserted_csi_values++;
+            inserted_csi_values++; // keep count of inserted csi_value
         }
 
         missing_csi_frames --;
@@ -258,7 +258,7 @@ process_frame_hook(struct sk_buff *p, struct wlc_d11rxhdr *wlc_rxhdr, struct wlc
 #endif
             p_csi->len = sizeof(struct csi_udp_frame) + inserted_csi_values * sizeof(uint32);
             skb_pull(p_csi, sizeof(struct ethernet_ip_udp_header));
-            prepend_ethernet_ipv4_udp_header(p_csi);
+            prepend_ethernet_ipv4_udp_header(p_csi); // add udp header to csi frame
             wl->dev->chained->funcs->xmit(wl->dev, wl->dev->chained, p_csi);
             p_csi = 0;
         }

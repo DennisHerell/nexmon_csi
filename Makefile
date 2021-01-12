@@ -1,18 +1,39 @@
-GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always --tags)
-include ../version.mk
-include $(FW_PATH)/definitions.mk
+GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always --tags) # Get git version
+include ../version.mk # Get Firmware path (FW_PATH)
+include $(FW_PATH)/definitions.mk # Get various variables in definition.mk
 
-COMMON_SRCS=$(wildcard $(NEXMON_ROOT)/patches/common/*.c)
-FW_SRCS=$(wildcard $(FW_PATH)/*.c)
+#In Makefile, variable tend to be a list of files
+COMMON_SRCS=$(wildcard $(NEXMON_ROOT)/patches/common/*.c) # Get a list of all common sources
+FW_SRCS=$(wildcard $(FW_PATH)/*.c) # Get a list of all firmware sources
 
-UCODEFILE:=
-SPLITPATH=$(subst /, ,$(FW_PATH))
+UCODEFILE:= # Set UCODEFILE as empty string
+SPLITPATH=$(subst /, ,$(FW_PATH)) # Substitute / in FW_PATH with space
+#\
+$(word,n,text) Returns the nth word of text               \
+$(words,text) Returns the number of word in a text        \
+expr can be used to perform operation on shell script     \
+$(lastword, text) takes the last word from a text       
+
+#FWUCODE = bcm43455c0.7_45_189.patch in this project (RPi 3B+)
 FWUCODE=$(word $(shell expr $(words $(SPLITPATH)) - 1),$(SPLITPATH)).$(lastword $(SPLITPATH)).patch
+
+# $(filter pattern…,text) Returns  words in text that match the pattern words The patterns are written using ‘%’
+# $(notdir names…) Extracts all but the directory-part of each file name in names
+
+#UCODES = bcm43455c0.7_45_189.patch (but from src in nexmon_csi)
 UCODES=$(filter %$(FWUCODE),$(notdir $(wildcard src/*.patch)))
+
+# Conditional 																		\
+The lines of the makefile following the ifeq are obeyed if the two arguments match 	\
+ifneq does the opposite, obeyed if the two arguments are different					\
+$(findstring find,in) Searches 'in' for an occurrence of 'find'. If it occurs, the value is 'find'
+
+# UCODEFILE = csi.ucode.bcm43455c0.7_45_189.patch
 ifeq ($(UCODEFILE),)
 UCODEFILE=csi.ucode.$(FWUCODE)
 endif
 
+# For bcm43455c0, LOCAL_SRCS = all sources code in src + ucode_compressed.c
 ifneq ($(findstring bcm43455c0,$(FWUCODE)), )
 LOCAL_SRCS=$(wildcard src/*.c) src/ucode_compressed.c
 else ifneq ($(findstring bcm4366c0,$(FWUCODE)), )
@@ -21,6 +42,7 @@ else
 LOCAL_SRCS=$(wildcard src/*.c) src/ucode_compressed.c src/templateram.c
 endif
 
+# For bcm43455c0, B43VERSION = b43-v3
 ifneq ($(findstring bcm4366c0,$(FWUCODE)), )
 B43VERSION=b43-v2
 else ifneq ($(findstring bcm43455c0,$(FWUCODE)), )
@@ -31,13 +53,21 @@ else
 B43VERSION=b43
 endif
 
+
 ADBSERIAL := 
 ADBFLAGS := $(ADBSERIAL)
 
 REMOTEADDR := $(REMOTEADDR)
 
+#\
+A substitution reference substitutes the value of a variable with alterations that you specify  \
+It has the form ‘$(var:a=b)’ (or ‘${var:a=b}’) and its meaning is to take the value of the variable var, \
+replace every a at the end of a word with b in that value, and substitute the resulting string.
+
+# OBJS = obj/csi_extractor.o ... (and every other source code)
 OBJS=$(addprefix obj/,$(notdir $(LOCAL_SRCS:.c=.o)) $(notdir $(COMMON_SRCS:.c=.o)) $(notdir $(FW_SRCS:.c=.o)))
 
+#CFLAGS is the list of flags to pass to the compilation command
 CFLAGS= \
 	-fplugin=$(CCPLUGIN) \
 	-fplugin-arg-nexmon-objfile=$@ \
@@ -77,7 +107,7 @@ CFLAGS= \
 	-Iinclude \
 	-I$(FW_PATH)
 
-
+# RAM_FILE = brcmfmac43455-sdio.bin (from definition)
 # only make dhd.ko for bcm4366c0
 ifneq ($(findstring bcm4366c0,$(FWUCODE)), )
 all: $(RAM_FILE) dhd.ko
@@ -86,9 +116,13 @@ dhd.ko: $(RAM_FILE)
 	$(Q)cp $(FW_PATH)/dhd.ko .
 	$(Q)dd conv=notrunc bs=1 if=$< of=$@ seek=$$((0x4E798)) count=$$((0x10F4CF)) status=none
 else
+# all should be the default target that compile the whole program
 all: $(RAM_FILE)
 endif
 
+# FORCE imply that init is a phony target
+# $(Q) seems to be shell command
+# In the initial installation, set 	BUILD_NUMBER to 1, create src/version.c, make header.mk and make 3 directory (obj, gen, log)  
 init: FORCE
 	$(Q)if ! test -f BUILD_NUMBER; then echo 0 > BUILD_NUMBER; fi
 	$(Q)echo $$(($$(cat BUILD_NUMBER) + 1)) > BUILD_NUMBER
@@ -99,13 +133,14 @@ init: FORCE
 # only make for bcm43455c0
 ifneq ($(findstring bcm43455c0,$(FWUCODE)), )
 brcmfmac.ko: check-nexmon-setup-env
-ifeq ($(shell uname -m),$(filter $(shell uname -m), armv6l armv7l))
-ifeq ($(findstring 4.19,$(shell uname -r)),4.19)
+ifeq ($(shell uname -m),$(filter $(shell uname -m), armv6l armv7l)) #Check whether driver version is supported
+ifeq ($(findstring 4.19,$(shell uname -r)),4.19) 
 	@printf "\033[0;31m  BUILDING DRIVER for kernel 4.19\033[0m brcmfmac_4.19.y-nexmon/brcmfmac.ko (details: log/driver.log)\n" $@
 	$(Q)make -C /lib/modules/$(shell uname -r)/build M=$$PWD/brcmfmac_4.19.y-nexmon -j2 >log/driver.log
-else ifeq ($(findstring 5.4,$(shell uname -r)),5.4)
+#Compile brcmfmac.ko from source files for kernel 5.4
+else ifeq ($(findstring 5.4,$(shell uname -r)),5.4) 
 	@printf "\033[0;31m  BUILDING DRIVER for kernel 5.4\033[0m brcmfmac_5.4.y-nexmon/brcmfmac.ko (details: log/driver.log)\n" $@
-	$(Q)make -C /lib/modules/$(shell uname -r)/build M=$$PWD/brcmfmac_5.4.y-nexmon -j2 >log/driver.log
+	$(Q)make -C /lib/modules/$(shell uname -r)/build M=$$PWD/brcmfmac_5.4.y-nexmon -j2 >log/driver.log 
 else
 	$(warning Warning: Kernel version not supported)
 endif
@@ -114,6 +149,7 @@ else
 endif
 endif
 
+#Compile the source file into object files and put the log into compiler.log
 obj/%.o: src/%.c
 	@printf "\033[0;31m  COMPILING\033[0m %s => %s (details: log/compiler.log)\n" $< $@
 	$(Q)cat gen/nexmon.pre 2>>log/error.log | gawk '{ if ($$3 != "$@") print; }' > tmp && mv tmp gen/nexmon.pre
@@ -129,6 +165,7 @@ obj/%.o: $(FW_PATH)/%.c
 	$(Q)cat gen/nexmon.pre 2>>log/error.log | gawk '{ if ($$3 != "$@") print; }' > tmp && mv tmp gen/nexmon.pre
 	$(Q)$(CC)gcc $(CFLAGS) -c $< -o $@ >>log/compiler.log
 
+#
 gen/nexmon2.pre: $(OBJS)
 	@printf "\033[0;31m  PREPARING\033[0m %s => %s\n" "gen/nexmon.pre" $@
 	$(Q)cat gen/nexmon.pre | awk '{ if ($$3 != "obj/flashpatches.o" && $$3 != "obj/wrapper.o") { print $$0; } }' > tmp
@@ -301,8 +338,11 @@ src/templateram.c: $(FW_PATH)/templateram.bin
 	$(Q)cd $(dir $<) && xxd -i $(notdir $<) >> $(shell pwd)/$@
 
 ###################################################################
+# Various Interupt Handler:
 
+# Check if setup_env.sh has been sourced
 check-nexmon-setup-env:
+# ifndef: If the variable variable-name has an empty value, the text-if-true is effective
 ifndef NEXMON_SETUP_ENV
 	$(error run 'source setup_env.sh' first in the repository\'s root directory)
 endif
