@@ -3,11 +3,11 @@
 #include "/home/pi/nexmon/buildtools/b43-v3/debug/include/cond.inc"
 
 #define phy_reg_read_to_shm_off(addr, base, offset) \
-	mov	addr, r33                                   \
-	calls	L66                                     \
-	or	SPR_Ext_IHR_Data, 0x0, [base, offset]
+	mov	addr, r33    // address of SPR_Ext_IHR_Address                               \
+	calls	L66 // put the r33 into SPR_Ext_IHR_Address with the 15th bit set to 1            \
+	or	SPR_Ext_IHR_Data, 0x0, [base, offset] // write SPR data into memory pointed by base & offset
 
-#define phy_reg_read(addr, target)                  \
+#define phy_reg_read(addr, target)             \
 	mov	addr, r33                               \
 	calls	L66                                     \
 	or	SPR_Ext_IHR_Data, 0x0, target
@@ -431,15 +431,15 @@ L65:
 	calls	L1424
 	jmp	L141
 L66:
-	jnzx	0, 14, SPR_Ext_IHR_Address, 0x0, L66
-	orx	1, 13, 0x3, r33, SPR_Ext_IHR_Address
+	jnzx	0, 14, SPR_Ext_IHR_Address, 0x0, L66 // if last digit of SPR = 0, continue
+	orx	1, 13, 0x3, r33, SPR_Ext_IHR_Address // set SPR = r33 with the 15th bit set to 1
 L67:
-	jnzx	0, 14, SPR_Ext_IHR_Address, 0x0, L67
-	rets
+	jnzx	0, 14, SPR_Ext_IHR_Address, 0x0, L67 // if last digit of SPR = 0, continue
+	rets // return to caller
 L68:
-	jnzx	0, 14, SPR_Ext_IHR_Address, 0x0, L68
-	or	r34, 0x0, SPR_Ext_IHR_Data
-	orx	1, 13, 0x2, r33, SPR_Ext_IHR_Address
+	jnzx	0, 14, SPR_Ext_IHR_Address, 0x0, L68 // if last digit of SPR = 0, continue
+	or	r34, 0x0, SPR_Ext_IHR_Data // Set SPR_Data = r34
+	orx	1, 13, 0x2, r33, SPR_Ext_IHR_Address // set SPR_Address = r33 with the 15th bit set to 1
 	rets
 L69:
 	mov	0x1800, SPR_PSM_0x76
@@ -4298,8 +4298,8 @@ L727:
 #define		TONES_LAST_CHUNK_80MHZ	4
 #define		TONES_LAST_CHUNK_40MHZ	2
 #define		TONES_LAST_CHUNK_20MHZ	8
-	mov	[RX_HDR_RxChan], [RXCHAN]
-	mov	0, DUMP_CSI
+	mov	[RX_HDR_RxChan], [RXCHAN] // both are memory location thus the []
+	mov	0, DUMP_CSI // set r52 = 0
 	calls	enable_carrier_search
 	mov	1, [CLEANDEAF]
 	mov	0x3800, SPARE2
@@ -4352,12 +4352,12 @@ not_last_chunk:
 	phy_reg_write(0x00d, SPARE5)
 	phy_reg_write(0x00e, SPARE2)
 read_csi:
-	phy_reg_read_to_shm_off(0x00f, 0, off5)
+	phy_reg_read_to_shm_off(0x00f, 0, off5) // write 0x00f as spr address and put spr data into [0,off5]
 	phy_reg_read_to_shm_off(0x010, 1, off5)
 	add	SPR_BASE5, 2, SPR_BASE5
 	add	SPARE2, 1, SPARE2
 	sub	SPARE1, 1, SPARE1
-	jne	SPARE1, 0, read_csi-
+	jne	SPARE1, 0, read_csi- // if SPARE1 != 0, loop back
 	jne	SPARE3, 1, not_last_chunk_skip_mac+
 	mov	[SRC_MAC_CACHE_0], [0,off5]
 	mov	[SRC_MAC_CACHE_1], [1,off5]

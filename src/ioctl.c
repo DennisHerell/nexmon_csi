@@ -116,7 +116,7 @@
 #endif
 
 int 
-wlc_ioctl_hook(struct wlc_info *wlc, int cmd, char *arg, int len, void *wlc_if)
+wlc_ioctl_hook(struct wlc_info *wlc, int cmd, char *arg, int len, void *wlc_if) // cmd --> custom_cmd, arg --> custom_cmd_buf
 {
     int ret = IOCTL_ERROR;
     argprintf_init(arg, len);

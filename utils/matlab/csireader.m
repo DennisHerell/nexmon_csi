@@ -10,8 +10,8 @@ clear all
 
 %% configuration
 CHIP = '43455c0';          % wifi chip (possible values 4339, 4358, 43455c0, 4366c0)
-BW = 40;                % bandwidth
-FILE = '/home/dennisherell/pcap/4Jan2021/c4440shake.pcap';% capture file
+BW = 80;                % bandwidth
+FILE = '/home/dennisherell/pcap/28Jan2021/n15x88.pcap';% capture file
 NPKTS_MAX = 1000;       % max number of UDPs to process
 
 %% read file
@@ -65,17 +65,27 @@ while (k <= n)
     % Remove the null subcarrier for 20 MHz
     if(BW == 20)
         csi_buff(k,1) = 0;
-        csi_buff(k,27) = 0;
-        csi_buff(k,28) = 0;
-        csi_buff(k,29) = 0;
-        csi_buff(k,30) = 0;
-        csi_buff(k,31) = 0;
-        csi_buff(k,32) = 0;
-        csi_buff(k,33) = 0;
-        csi_buff(k,34) = 0;
-        csi_buff(k,35) = 0;
-        csi_buff(k,36) = 0;
-        csi_buff(k,37) = 0;
+        i = 27;
+        while(i<=37)
+            csi_buff(k,i) = 0;
+            i = i + 1;
+        end
+    elseif(BW == 40)
+        csi_buff(k,1) = 0;
+        csi_buff(k,128) = 0;
+        i = 60;
+        while(i<=68)
+            csi_buff(k,i) = 0;
+            i = i + 1;
+        end
+    else
+        csi_buff(k,1) = 0;
+        csi_buff(k,2) = 0;
+        i = 124;
+        while(i<=132)
+            csi_buff(k,i) = 0;
+            i = i + 1;
+        end
     end
     % Repeat the loop for the next frame
     k = k + 1;
@@ -83,6 +93,3 @@ end
 
 %% plot
 plotcsi(csi_buff, NFFT, true)
-
-
-

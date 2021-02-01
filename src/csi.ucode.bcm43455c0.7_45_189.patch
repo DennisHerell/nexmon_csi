@@ -1,15 +1,15 @@
 4a5,81
-> #define phy_reg_read_to_shm_off(addr, base, offset) \
+> #define phy_reg_read_to_shm_off(addr, base, offset) // read SPR_Ext_IHR_Data into [base,offset]\
 > 	mov	addr, r33                                   \
 > 	calls	L66                                     \
 > 	or	SPR_Ext_IHR_Data, 0x0, [base, offset]
 > 
-> #define phy_reg_read(addr, target)                  \
+> #define phy_reg_read(addr, target)                // read SPR_Ext_IHR_Data into [target]  \
 > 	mov	addr, r33                               \
 > 	calls	L66                                     \
 > 	or	SPR_Ext_IHR_Data, 0x0, target
 > 
-> #define phy_reg_write(addr,value)                   \
+> #define phy_reg_write(addr,value)                // write SPR_Ext_IHR_Data to value   \
 > 	mov	addr, r33                                   \
 > 	mov	value, r34                                  \
 > 	calls	L68
@@ -115,13 +115,13 @@
 > 	calls	L1120
 > 	calls	L1325
 > 	jl	SPR_RXE_FRAMELEN, (6 + 24), spin-
-> 	jne	[SHM_CSI_COLLECT], 1, skip+
+> 	jne	[SHM_CSI_COLLECT], 1, skip+ // check csi collection mode, if 0 skip csi collection
 > 	je	r23, 0x0, skip+
-> 	je	[APPLY_PKT_FILTER], 0, nopktfilt+
-> 	and	[3,off1], 0x00ff, SPARE1
-> 	jne	SPARE1, [PKT_FILTER_BYTE], skip+
+> 	je	[APPLY_PKT_FILTER], 0, nopktfilt+ // Check if frame filter is applied
+> 	and	[3,off1], 0x00ff, SPARE1 // put the frame bytes on SPARE1
+> 	jne	SPARE1, [PKT_FILTER_BYTE], skip+ // if frame bytes not equal to filter, skip it
 > nopktfilt:
-> 	je	[N_CMP_SRC_MAC], 0, nomacfilter+
+> 	je	[N_CMP_SRC_MAC], 0, nomacfilter+ // Check if mac filter is applied
 > 	mov	0, SPARE1
 > macloop:
 > 	je	SPARE1, [N_CMP_SRC_MAC], skip+
@@ -142,11 +142,11 @@
 > 	mov	[CMP_SRC_MAC_0_2], SPARE4
 > macset:
 > 	add	SPARE1, 1, SPARE1
-> 	jne	[8,off1], SPARE2, macloop-
+> 	jne	[8,off1], SPARE2, macloop- // if frame mac address doesn't fit filter, loop back to check other
 > 	jne	[9,off1], SPARE3, macloop-
 > 	jne	[10,off1], SPARE4, macloop-
 > nomacfilter:
-> 	or	[8,off1], 0x0, [SRC_MAC_CACHE_0]
+> 	or	[8,off1], 0x0, [SRC_MAC_CACHE_0] // Put the frame mac address into SRC_MAC_CACHE (0x89a-c)
 > 	or	[9,off1], 0x0, [SRC_MAC_CACHE_1]
 > 	or	[10,off1], 0x0, [SRC_MAC_CACHE_2]
 > 	or	[14,off1], 0x0, [SEQ_NUM_CACHE]
@@ -284,7 +284,7 @@
 > 	orx	0, 2, 0x1, [RX_HDR_RxStatus1], [RX_HDR_RxStatus1]
 > 	orx	0, 1, 0x0, [RX_HDR_RxStatus2], [RX_HDR_RxStatus2]
 4158a4291,4378
-> 	je	DUMP_CSI, 0, csi_end+
+> 	je	DUMP_CSI, 0, csi_end+  // check whether to collect csi or not
 > #define		ACPHY_TBL_ID_CORE0CHANESTTBL	73
 > #define		ACPHY_TBL_ID_CORE1CHANESTTBL	105
 > #define		TONES_PER_CHUNK	14
@@ -330,39 +330,39 @@
 > 	je	SPARE2, 0, skip_this_core_txstream
 > 	sl	SPARE6, 8, SPARE2
 > 	mov	[CHUNKS], SPARE3
-> fill_next_rxhdr:
+> fill_next_rxhdr: // put csi into rx_header
 > 	mov	(RX_HDR_BASE + RXE_RXHDR_LEN), SPR_BASE5
 > 	mov	2, [0,off5]
 > 	mov	0, [1,off5]
 > 	or	SPARE3, [CSICONFIGCACHE], [2,off5]
 > 	jne	SPARE3, [CHUNKS], not_first_chunk+
-> 	mov	0x4000, SPARE1
+> 	mov	0x4000, SPARE1 // for first chunk
 > 	or	SPARE1, [2,off5], [2,off5]
 > not_first_chunk:
-> 	mov	TONES_PER_CHUNK, SPARE1	// number of tones for this chunk
+> 	mov	TONES_PER_CHUNK, SPARE1	// number of tones (csi length) for this chunk
 > 	jne	SPARE3, 1, not_last_chunk+
 > 	mov	[TONES_LAST_CHUNK], SPARE1
 > not_last_chunk:
 > 	mov	SPARE1, [3,off5]
 > 	add	SPR_BASE5, 4, SPR_BASE5
-> 	phy_reg_write(0x00d, SPARE5)
+> 	phy_reg_write(0x00d, SPARE5) // set SPR_Ext_IHR_Data = SPARE5
 > 	phy_reg_write(0x00e, SPARE2)
-> read_csi:
-> 	phy_reg_read_to_shm_off(0x00f, 0, off5)
+> read_csi: // read csi from rx_header
+> 	phy_reg_read_to_shm_off(0x00f, 0, off5) // write 0x00f as spr address and put spr data into [0,off5]
 > 	phy_reg_read_to_shm_off(0x010, 1, off5)
-> 	add	SPR_BASE5, 2, SPR_BASE5
+> 	add	SPR_BASE5, 2, SPR_BASE5 // SPR_BASE5 is offset register 5 (related to off5?)
 > 	add	SPARE2, 1, SPARE2
 > 	sub	SPARE1, 1, SPARE1
 > 	jne	SPARE1, 0, read_csi-
 > 	jne	SPARE3, 1, not_last_chunk_skip_mac+
-> 	mov	[SRC_MAC_CACHE_0], [0,off5]
+> 	mov	[SRC_MAC_CACHE_0], [0,off5] // put the mac address into csi frame
 > 	mov	[SRC_MAC_CACHE_1], [1,off5]
 > 	mov	[SRC_MAC_CACHE_2], [2,off5]
 > 	mov	[SEQ_NUM_CACHE], [3,off5]
-> not_last_chunk_skip_mac:
+> not_last_chunk_skip_mac: // next rx header
 > 	mov	RX_HDR_BASE + RXE_RXHDR_LEN, SPR_RXE_RXHDR_OFFSET
 > 	calls	L900
-> 	sub	SPARE3, 1, SPARE3
+> 	sub	SPARE3, 1, SPARE3 // substract chunk counter
 > 	jne	SPARE3, 0, fill_next_rxhdr-
 > skip_this_core_txstream:
 > 	add	SPARE6, 1, SPARE6
